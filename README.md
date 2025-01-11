@@ -4,4 +4,4 @@ app for aldi compliance
 
 #### License
 
-mit
+mit# Aldi-Compliance
