@@ -57,14 +57,14 @@ class ComplianceAttendanceGenerate(Document):
                 current_date = from_date
                 while current_date <= to_date:
                     # Generate random check-in and check-out times
-                    check_in_hour = random.randint(8, 10)  # Random hour between 8 and 10 AM
-                    check_in_minute = random.randint(0, 59)
+                    check_in_hour = random.randint(9, 9)  # Random hour between 8 and 10 AM
+                    check_in_minute = random.randint(0, 15)
                     check_in_second = random.randint(0, 59)
                     check_in_1 = time(check_in_hour, check_in_minute, check_in_second)
                     check_in_1_str = check_in_1.strftime("%H:%M:%S")  # Convert to string
                     
-                    check_out_hour = random.randint(18, 20)  # Random hour between 5 and 7 PM
-                    check_out_minute = random.randint(0, 59)
+                    check_out_hour = random.randint(19, 19)  # Random hour between 5 and 7 PM
+                    check_out_minute = random.randint(0, 15)
                     check_out_second = random.randint(0, 59)
                     check_out_1 = time(check_out_hour, check_out_minute, check_out_second)  # Random check-out time
 
