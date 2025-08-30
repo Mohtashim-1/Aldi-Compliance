@@ -1,0 +1,221 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-08-29 17:50:36.197388",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "department",
+  "company",
+  "column_break_1",
+  "shift_type",
+  "attendance_settings_section",
+  "late_arrival_probability",
+  "absent_probability",
+  "overtime_probability",
+  "early_exit_probability",
+  "column_break_2",
+  "working_hours",
+  "grace_period_minutes",
+  "overtime_threshold_hours",
+  "time_settings_section",
+  "check_in_start_time",
+  "check_in_end_time",
+  "check_out_start_time",
+  "check_out_end_time",
+  "column_break_3",
+  "overtime_start_time",
+  "overtime_end_time",
+  "is_active"
+ ],
+ "fields": [
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Department",
+   "options": "Department",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "shift_type",
+   "fieldtype": "Link",
+   "label": "Default Shift Type",
+   "options": "Shift Type"
+  },
+  {
+   "fieldname": "attendance_settings_section",
+   "fieldtype": "Section Break",
+   "label": "Attendance Settings"
+  },
+  {
+   "default": "10",
+   "fieldname": "late_arrival_probability",
+   "fieldtype": "Percent",
+   "label": "Late Arrival Probability (%)",
+   "description": "Percentage chance of employee arriving late"
+  },
+  {
+   "default": "5",
+   "fieldname": "absent_probability",
+   "fieldtype": "Percent",
+   "label": "Absent Probability (%)",
+   "description": "Percentage chance of employee being absent"
+  },
+  {
+   "default": "15",
+   "fieldname": "overtime_probability",
+   "fieldtype": "Percent",
+   "label": "Overtime Probability (%)",
+   "description": "Percentage chance of employee doing overtime"
+  },
+  {
+   "default": "8",
+   "fieldname": "early_exit_probability",
+   "fieldtype": "Percent",
+   "label": "Early Exit Probability (%)",
+   "description": "Percentage chance of employee leaving early"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "8",
+   "fieldname": "working_hours",
+   "fieldtype": "Float",
+   "label": "Standard Working Hours",
+   "description": "Standard working hours per day"
+  },
+  {
+   "default": "15",
+   "fieldname": "grace_period_minutes",
+   "fieldtype": "Int",
+   "label": "Grace Period (Minutes)",
+   "description": "Grace period for late arrival in minutes"
+  },
+  {
+   "default": "8.5",
+   "fieldname": "overtime_threshold_hours",
+   "fieldtype": "Float",
+   "label": "Overtime Threshold (Hours)",
+   "description": "Hours after which overtime is calculated"
+  },
+  {
+   "fieldname": "time_settings_section",
+   "fieldtype": "Section Break",
+   "label": "Time Settings"
+  },
+  {
+   "default": "08:00:00",
+   "fieldname": "check_in_start_time",
+   "fieldtype": "Time",
+   "label": "Check-in Start Time",
+   "description": "Earliest possible check-in time"
+  },
+  {
+   "default": "09:30:00",
+   "fieldname": "check_in_end_time",
+   "fieldtype": "Time",
+   "label": "Check-in End Time",
+   "description": "Latest possible check-in time"
+  },
+  {
+   "default": "17:00:00",
+   "fieldname": "check_out_start_time",
+   "fieldtype": "Time",
+   "label": "Check-out Start Time",
+   "description": "Earliest possible check-out time"
+  },
+  {
+   "default": "18:30:00",
+   "fieldname": "check_out_end_time",
+   "fieldtype": "Time",
+   "label": "Check-out End Time",
+   "description": "Latest possible check-out time"
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "18:00:00",
+   "fieldname": "overtime_start_time",
+   "fieldtype": "Time",
+   "label": "Overtime Start Time",
+   "description": "Time after which overtime begins"
+  },
+  {
+   "default": "22:00:00",
+   "fieldname": "overtime_end_time",
+   "fieldtype": "Time",
+   "label": "Overtime End Time",
+   "description": "Latest possible overtime end time"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Is Active",
+   "description": "Enable/disable this configuration"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-08-29 17:50:36.197388",
+ "modified_by": "Administrator",
+ "module": "Compliance",
+ "name": "Department Attendance Config",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
