@@ -2,10 +2,41 @@
 # For license information, please see license.txt
 
 import frappe
-from frappe.model.document import Document
-from frappe.utils import getdate, add_days, get_first_day, get_last_day, get_time
-from datetime import datetime, timedelta, time
+from frappe import _
+from datetime import datetime, time, timedelta
 import random
+from frappe.utils import getdate, add_days, get_time
+from frappe.model.document import Document
+
+def log_message(message, level="info", show_user=True):
+	"""
+	Custom logging function with different levels and options
+	
+	Args:
+		message (str): The message to log
+		level (str): "info", "error", "success", "warning"
+		show_user (bool): Whether to show message to user
+	"""
+	
+	# Always log to error log for errors (with shorter messages)
+	if level == "error":
+		# Truncate long error messages to avoid character length issues
+		short_message = message[:100] + "..." if len(message) > 100 else message
+		frappe.log_error(short_message, "Fake Attendance Generator")
+	
+	# Show user messages based on level
+	if show_user:
+		if level == "success":
+			frappe.msgprint(f"✅ {message}", indicator="green")
+		elif level == "error":
+			frappe.msgprint(f"❌ {message}", indicator="red")
+		elif level == "warning":
+			frappe.msgprint(f"⚠️ {message}", indicator="orange")
+		else:
+			frappe.msgprint(f"ℹ️ {message}", indicator="blue")
+	
+	# Also print to console for debugging
+	print(f"[{level.upper()}] {message}")
 
 class FakeAttendanceGenerator(Document):
 	def validate(self):
@@ -18,91 +49,36 @@ def test_method():
 
 @frappe.whitelist()
 def generate_attendance(name):
-	"""Generate fake attendance data for all employees"""
+	"""Generate fake attendance data for all employees as background job"""
 	try:
 		doc = frappe.get_doc("Fake Attendance Generator", name)
-		
-		frappe.msgprint("Starting Fake Attendance Generation Process")
-		frappe.msgprint(f"📄 Document: {doc.name}")
-		frappe.msgprint(f"📅 Date range: {doc.start_date} to {doc.end_date}")
-		frappe.msgprint(f"🏢 Company: {doc.company}")
-		frappe.msgprint(f"🏭 Department: {doc.department}")
-		frappe.msgprint(f"📅 Include Weekends: {doc.include_weekends}")
-		frappe.msgprint(f"🎉 Include Holidays: {doc.include_holidays}")
 		
 		# Set status to In Progress
 		doc.status = "In Progress"
 		doc.save()
-		frappe.msgprint("✅ Document status set to 'In Progress'")
 		
-		# Get employees
-		employees = _get_employees(doc)
-		frappe.msgprint(f"👥 Found {len(employees)} employees")
+		log_message("🚀 Starting Fake Attendance Generation as Background Job...", "info")
+		log_message(f"📄 Document: {doc.name}", "info")
+		log_message(f"📅 Date range: {doc.start_date} to {doc.end_date}", "info")
+		log_message(f"🏢 Company: {doc.company}", "info")
+		log_message(f"🏭 Department: {doc.department or 'All Departments'}", "info")
+		log_message("⏳ This will run in the background. You can check the status later.", "info")
 		
-		# Get department configurations
-		dept_configs = _get_dept_configs()
-		frappe.msgprint(f"⚙️ Found {len(dept_configs)} department configurations")
+		# Enqueue the background job
+		frappe.enqueue(
+			method="compliance.compliance.doctype.fake_attendance_generator.fake_attendance_generator.generate_attendance_background",
+			doc_name=name,
+			queue="long",
+			timeout=3600,  # 1 hour timeout
+			job_name=f"Generate Fake Attendance - {doc.name}",
+			now=False
+		)
 		
-		# Process employees in smaller batches to avoid database locks
-		batch_size = 1  # Reduced from 5 to 1 to minimize locks
-		total_created = 0
-		
-		frappe.msgprint(f"🔄 Processing employees in batches of {batch_size}")
-		
-		for i in range(0, len(employees), batch_size):
-			batch = employees[i:i + batch_size]
-			batch_num = (i // batch_size) + 1
-			total_batches = (len(employees) + batch_size - 1) // batch_size
-			
-			frappe.msgprint(f"📦 Processing batch {batch_num}/{total_batches} ({len(batch)} employees)")
-			
-			for emp in batch:
-				try:
-					frappe.msgprint(f"👤 Processing employee: {emp.name} ({emp.employee_name})")
-					
-					# Get configuration for this employee's department
-					cfg = dept_configs.get(emp.department, _default_cfg())
-					frappe.msgprint(f"🏭 Using config for department: {emp.department}")
-					
-					# Generate attendance for this employee
-					created = _generate_for_employee(doc, emp, cfg)
-					total_created += created
-					
-					frappe.msgprint(f"✅ Generated {created} records for employee {emp.name}")
-					
-					# Commit after each employee to prevent database locks
-					frappe.db.commit()
-					frappe.msgprint(f"💾 Committed changes for employee {emp.name}")
-					
-				except Exception as e:
-					frappe.msgprint(f"❌ Error generating for employee {emp.name}: {str(e)}")
-					frappe.log_error(f"Error generating for employee {emp.name}: {str(e)}", "Fake Attendance Generator")
-					frappe.db.rollback()
-					continue
-			
-			# Commit after each batch
-			frappe.db.commit()
-			frappe.msgprint(f"💾 Committed batch {batch_num}")
-		
-		frappe.msgprint(f"📊 Total records created: {total_created}")
-		
-		# Update Employee Attendance summaries
-		frappe.msgprint("🔄 Updating Employee Attendance summaries...")
-		_update_employee_attendance_summary(doc)
-		
-		# Update document status
-		doc.status = "Completed"
-		doc.generated_records = total_created
-		doc.save()
-		
-		frappe.msgprint(f"🎉 Successfully generated {total_created} attendance records!")
-		frappe.msgprint("✅ Process completed successfully!")
-		
-		return {"status": "success", "records_created": total_created}
+		return {"status": "queued", "message": "Background job queued successfully"}
 		
 	except Exception as e:
-		frappe.msgprint(f"❌ Error generating attendance: {str(e)}")
-		frappe.log_error(f"Error generating attendance: {str(e)}", "Fake Attendance Generator")
+		log_message(f"❌ Error queuing background job: {str(e)}", "error")
+		frappe.log_error(f"Error queuing background job: {str(e)}", "Fake Attendance Generator")
 		
 		# Update document status to failed
 		try:
@@ -114,124 +90,290 @@ def generate_attendance(name):
 		
 		return {"status": "error", "message": str(e)}
 
+def generate_attendance_background(doc_name):
+	"""Background job to generate fake attendance"""
+	try:
+		doc = frappe.get_doc("Fake Attendance Generator", doc_name)
+		
+		# Update status to running
+		doc.status = "In Progress"
+		doc.generation_log = "🚀 Starting attendance generation..."
+		doc.save()
+		
+		log_message("🚀 Starting Fake Attendance Generation as Background Job...", "info")
+		log_message(f"📄 Document: {doc.name}", "info")
+		log_message(f"📅 Date range: {doc.start_date} to {doc.end_date}", "info")
+		log_message(f"🏢 Company: {doc.company}", "info")
+		log_message(f"🏭 Department: {doc.department}", "info")
+		log_message("⏳ This will run in the background. You can check the status later.", "info")
+		
+		# Get employees
+		employees = _get_employees(doc)
+		log_message(f"👥 Found {len(employees)} employees to process", "info")
+		
+		# Get department configurations
+		dept_configs = _get_dept_configs()
+		log_message(f"⚙️ Found {len(dept_configs)} department configurations", "info")
+		
+		# Calculate total days to process
+		start_date = getdate(doc.start_date)
+		end_date = getdate(doc.end_date)
+		total_days = (end_date - start_date).days + 1
+		log_message(f"📅 Total days to process: {total_days}", "info")
+		
+		# Process employees
+		total_created = 0
+		processed_employees = 0
+		
+		for emp in employees:
+			try:
+				log_message(f"👤 Processing employee: {emp.name} ({emp.employee_name}) - {emp.department}", "info")
+				
+				# Get configuration for this employee's department
+				cfg = dept_configs.get(emp.department, _default_cfg())
+				log_message(f"⚙️ Using config for department: {emp.department}", "info")
+				
+				# Generate attendance for this employee
+				created = _generate_for_employee_fast(doc, emp, cfg)
+				log_message(f"✅ Employee {emp.name}: Created {created} records", "info")
+				
+				total_created += created
+				processed_employees += 1
+				
+				# Update progress in the document
+				doc.generation_log = f"Processed {processed_employees}/{len(employees)} employees. Created {total_created} records for {total_days} days ({start_date} to {end_date})."
+				doc.save()
+				
+				# Commit after each employee
+				frappe.db.commit()
+				
+			except Exception as e:
+				log_message(f"❌ Error for employee {emp.name}: {str(e)}", "error")
+				frappe.log_error(f"Error generating for employee {emp.name}: {str(e)}", "Fake Attendance Generator")
+				frappe.db.rollback()
+				continue
+		
+		# Update final status
+		doc.status = "Completed"
+		doc.generated_records = total_created
+		doc.generation_log = f"✅ Completed! Generated {total_created} attendance records for {processed_employees} employees across {total_days} days ({start_date} to {end_date})."
+		doc.save()
+		
+		log_message(f"🎉 Generation completed! Total: {total_created} records for {processed_employees} employees", "success")
+		
+		# Send notification
+		frappe.publish_realtime(
+			event="fake_attendance_completed",
+			message={
+				"title": "Fake Attendance Generation Completed",
+				"message": f"Successfully generated {total_created} attendance records for {processed_employees} employees across {total_days} days.",
+				"doc_name": doc_name
+			},
+			user=doc.owner
+		)
+		
+		return {"status": "success", "records_created": total_created, "employees_processed": processed_employees}
+		
+	except Exception as e:
+		log_message(f"❌ Background job error: {str(e)}", "error")
+		frappe.log_error(f"Error in background job: {str(e)}", "Fake Attendance Generator")
+		
+		# Update document status to failed
+		try:
+			doc = frappe.get_doc("Fake Attendance Generator", doc_name)
+			doc.status = "Failed"
+			doc.generation_log = f"❌ Failed: {str(e)}"
+			doc.save()
+		except:
+			pass
+		
+		return {"status": "error", "message": str(e)}
+
+@frappe.whitelist()
+def get_generation_status(doc_name):
+	"""Get the current status of the background job"""
+	try:
+		doc = frappe.get_doc("Fake Attendance Generator", doc_name)
+		return {
+			"status": doc.status,
+			"generated_records": doc.generated_records or 0,
+			"generation_log": doc.generation_log or "",
+			"modified": doc.modified
+		}
+	except Exception as e:
+		return {"status": "error", "message": str(e)}
+
+@frappe.whitelist()
+def cancel_generation(doc_name):
+	"""Cancel the background job"""
+	try:
+		doc = frappe.get_doc("Fake Attendance Generator", doc_name)
+		
+		if doc.status == "In Progress":
+			# Cancel the job by setting status to Failed with cancellation message
+			frappe.db.set_value("Fake Attendance Generator", doc_name, "status", "Failed")
+			frappe.db.set_value("Fake Attendance Generator", doc_name, "generation_log", "Cancelled by user")
+			
+			log_message("✅ Generation cancelled successfully", "success")
+			return {"status": "cancelled"}
+		else:
+			log_message("❌ Cannot cancel - job is not running", "warning")
+			return {"status": "error", "message": "Job is not running"}
+			
+	except Exception as e:
+		log_message(f"❌ Error cancelling generation: {str(e)}", "error")
+		return {"status": "error", "message": str(e)}
+
 def _get_employees(doc):
-	# Get active employees
-	filters = {"status": "Active"}
-	
-	if doc.department:
-		filters["department"] = doc.department
-		frappe.msgprint(f"Filtering by department: {doc.department}")
-	
-	frappe.msgprint(f"Employee filters: {filters}")
-	
-	employees = frappe.get_all("Employee", filters=filters, fields=["name", "employee_name", "department", "designation", "biometric_id", "company_email", "date_of_joining", "holiday_list", "branch", "cnic", "image"])
-	
-	frappe.msgprint(f"Raw employee query returned {len(employees)} employees")
-	
-	# Debug: Show first few employees
-	for i, emp in enumerate(employees[:3]):
-		frappe.msgprint(f"Employee {i+1}: {emp.name} - {emp.employee_name} - {emp.department}")
-	
-	return employees
+	# Get active employees with minimal fields
+	try:
+		log_message("🔍 Getting employees...", "info")
+		
+		filters = {"status": "Active"}
+		
+		if doc.department:
+			filters["department"] = doc.department
+			log_message(f"📋 Filtering by department: {doc.department}", "info")
+		
+		log_message(f"🔍 Employee filters: {filters}", "info")
+		
+		employees = frappe.get_all("Employee", filters=filters, fields=["name", "employee_name", "department", "designation", "biometric_id", "company_email", "date_of_joining", "holiday_list", "branch", "cnic"])
+		
+		log_message(f"✅ Found {len(employees)} employees", "info")
+		
+		for i, emp in enumerate(employees):
+			log_message(f"👤 Employee {i+1}: {emp.name} - {emp.employee_name} - {emp.department}", "info")
+		
+		return employees
+		
+	except Exception as e:
+		log_message(f"❌ Error getting employees: {str(e)}", "error")
+		frappe.log_error(f"Error getting employees: {str(e)}", "Fake Attendance Generator")
+		return []
 
 def _get_dept_configs():
 	# Get department-specific configurations
 	configs = {}
 	try:
-		dept_configs = frappe.get_all("Department Attendance Config", fields=["department", "company", "shift_type", "late_arrival_probability", "absent_probability", "overtime_probability", "early_exit_probability", "working_hours", "grace_period_minutes", "overtime_threshold_minutes", "check_in_start_time", "check_in_end_time", "check_out_start_time", "check_out_end_time", "overtime_start_time", "overtime_end_time"])
+		dept_configs = frappe.get_all("Department Attendance Config", fields=[
+			"department", 
+			"late_arrival_probability", 
+			"absent_probability", 
+			"overtime_probability", 
+			"early_exit_probability",
+			"check_in_start_time", 
+			"check_in_end_time", 
+			"check_out_start_time", 
+			"check_out_end_time",
+			"overtime_start_time",
+			"overtime_end_time",
+			"working_hours"
+		])
 		
-		frappe.msgprint(f"Found {len(dept_configs)} Department Attendance Configs")
+		log_message(f"📋 Found {len(dept_configs)} department configurations", "info")
 		
 		for config in dept_configs:
 			configs[config.department] = config
-			frappe.msgprint(f"Config for {config.department}: Late={config.late_arrival_probability}%, Absent={config.absent_probability}%, OT={config.overtime_probability}%")
+			log_message(f"✅ Config for {config.department}: Late={config.late_arrival_probability}%, Absent={config.absent_probability}%", "info")
 		
 	except Exception as e:
-		frappe.msgprint(f"Error getting department configs: {str(e)}")
+		log_message(f"❌ Error getting department configs: {str(e)}", "error")
 		frappe.log_error(f"Error getting department configs: {str(e)}", "Fake Attendance Generator")
 	
 	return configs
 
 def _default_cfg():
 	# Default configuration if no department-specific config exists
-	frappe.msgprint("Using default configuration")
 	return frappe._dict({
 		"late_arrival_probability": 10,
 		"absent_probability": 5,
 		"overtime_probability": 15,
-		"early_exit_probability": 5,
-		"working_hours": 8,
-		"grace_period_minutes": 15,
-		"overtime_threshold_minutes": 30,
 		"check_in_start_time": "08:00:00",
 		"check_in_end_time": "09:00:00",
 		"check_out_start_time": "17:00:00",
-		"check_out_end_time": "18:00:00",
-		"overtime_start_time": "18:00:00",
-		"overtime_end_time": "20:00:00"
+		"check_out_end_time": "18:00:00"
 	})
 
-def _create_employee_attendance(doc, emp, month_name, year):
-	# Create Employee Attendance record for the month
+def _create_employee_attendance_fast(doc, emp, month_name, year):
 	try:
-		# Check if Employee Attendance already exists for this employee and month
-		existing_attendance = frappe.get_all(
+		log_message(f"Creating Employee Attendance for {emp.name} - {month_name} {year}", "info")
+		
+		# Check if exists
+		existing = frappe.get_all(
 			"Employee Attendance",
-			filters={
-				"employee": emp.name,
-				"month": month_name,
-				"year": year
-			},
+			filters={"employee": emp.name, "month": month_name, "year": year},
 			limit=1
 		)
 		
-		if existing_attendance:
-			frappe.msgprint(f"Employee Attendance already exists for {emp.name} - {month_name} {year}")
-			return frappe.get_doc("Employee Attendance", existing_attendance[0].name)
+		if existing:
+			log_message(f"Employee Attendance already exists: {existing[0].name}", "info")
+			return frappe.get_doc("Employee Attendance", existing[0].name)
 		
-		# Prepare employee data WITHOUT image to avoid file issues
+		# Create new with only essential fields
 		emp_data = {
 			"doctype": "Employee Attendance",
 			"employee": emp.name,
 			"month": month_name,
 			"year": year,
-			"company": doc.company,
-			"department": emp.department,
-			"designation": emp.designation,
-			"biometric_id": emp.biometric_id,
-			"employee_name": emp.employee_name,
-			"email_id": emp.company_email,
-			"joining_date": emp.date_of_joining,
-			"holiday_list": emp.holiday_list,
-			"unit": emp.branch,
-			"cnic": emp.cnic
-			# Intentionally NOT including image field to avoid file errors
+			"company": doc.company
 		}
+		
+		# Add optional fields only if they exist
+		if hasattr(emp, 'department') and emp.department:
+			emp_data["department"] = emp.department
+		if hasattr(emp, 'designation') and emp.designation:
+			emp_data["designation"] = emp.designation
+		if hasattr(emp, 'biometric_id') and emp.biometric_id:
+			emp_data["biometric_id"] = emp.biometric_id
+		if hasattr(emp, 'employee_name') and emp.employee_name:
+			emp_data["employee_name"] = emp.employee_name
+		if hasattr(emp, 'company_email') and emp.company_email:
+			emp_data["email_id"] = emp.company_email
+		if hasattr(emp, 'date_of_joining') and emp.date_of_joining:
+			emp_data["joining_date"] = emp.date_of_joining
+		if hasattr(emp, 'holiday_list') and emp.holiday_list:
+			emp_data["holiday_list"] = emp.holiday_list
+		if hasattr(emp, 'branch') and emp.branch:
+			emp_data["unit"] = emp.branch
+		if hasattr(emp, 'cnic') and emp.cnic:
+			emp_data["cnic"] = emp.cnic
+		
+		log_message(f"Creating Employee Attendance with data: {emp_data}", "info")
 		
 		emp_attendance = frappe.get_doc(emp_data)
 		emp_attendance.insert()
-		frappe.msgprint(f"✅ SUCCESS: Created Employee Attendance '{emp_attendance.name}' for {emp.name} - {month_name} {year}")
+		
+		log_message(f"✅ Successfully created Employee Attendance: {emp_attendance.name}", "success")
 		return emp_attendance
+		
 	except Exception as e:
+		log_message(f"❌ Error creating Employee Attendance: {str(e)}", "error")
 		frappe.log_error(f"Error creating Employee Attendance for {emp.name}: {str(e)}", "Fake Attendance Generator")
-		frappe.msgprint(f"❌ FAILED: Could not create Employee Attendance for {emp.name} - {month_name} {year}: {str(e)}")
+		import traceback
+		frappe.log_error(f"Traceback: {traceback.format_exc()}", "Fake Attendance Generator")
 		return None
 
-def _add_daily_attendance_to_employee_attendance(emp_attendance, date, check_in_time, check_out_time, is_absent=False):
-	# Add daily attendance record to the Employee Attendance table
+def _add_daily_attendance_fast(emp_attendance_name, date, check_in_time, check_out_time, is_absent):
 	try:
-		if not emp_attendance.table1:
-			emp_attendance.table1 = []
+		# Get a fresh copy of the document to avoid modification conflicts
+		emp_attendance = frappe.get_doc("Employee Attendance", emp_attendance_name)
 		
-		# Calculate total hours worked
+		# Check if exists
+		existing_record = None
+		for record in emp_attendance.table1:
+			if record.date == date:
+				existing_record = record
+				break
+		
+		# Calculate hours
+		total_hours = 0
 		if check_in_time and check_out_time:
 			check_in_dt = datetime.combine(date, check_in_time)
 			check_out_dt = datetime.combine(date, check_out_time)
 			total_hours = (check_out_dt - check_in_dt).total_seconds() / 3600
-		else:
-			total_hours = 0
 		
-		daily_record = {
+		# Prepare daily record data with correct field names
+		daily_record_data = {
 			"date": date,
 			"day": date.strftime("%A"),
 			"check_in_1": check_in_time.strftime("%H:%M:%S") if check_in_time else "",
@@ -239,228 +381,234 @@ def _add_daily_attendance_to_employee_attendance(emp_attendance, date, check_in_
 			"difference": f"{int(total_hours):02d}:{int((total_hours % 1) * 60):02d}:00" if total_hours > 0 else "",
 			"absent": is_absent,
 			"present": not is_absent,
-			"weekday": date.weekday() < 5,  # Monday-Friday
+			"weekday": date.weekday() < 5,
 			"day_type": "Weekday" if date.weekday() < 5 else "Weekly Off"
 		}
 		
-		emp_attendance.append("table1", daily_record)
-		frappe.msgprint(f"📝 Added daily attendance for {date}: Check-in={check_in_time}, Check-out={check_out_time}, Absent={is_absent}")
+		if existing_record:
+			# Update existing record
+			for key, value in daily_record_data.items():
+				setattr(existing_record, key, value)
+		else:
+			# Add new record
+			emp_attendance.append("table1", daily_record_data)
+		
+		# Save the document
+		emp_attendance.save()
+		
+		# Log success for debugging
+		log_message(f"Added daily attendance for {date}: Check-in={check_in_time}, Check-out={check_out_time}, Absent={is_absent}", "info")
 		
 	except Exception as e:
-		frappe.msgprint(f"❌ Error adding daily attendance for {date}: {str(e)}")
+		log_message(f"❌ Error adding daily attendance for {date}: {str(e)}", "error")
 		frappe.log_error(f"Error adding daily attendance for {date}: {str(e)}", "Fake Attendance Generator")
+		# Re-raise the exception to see what's happening
+		raise e
 
-def _generate_for_employee(doc, emp, cfg):
-	created = 0
-	current_date = getdate(doc.start_date)
-	end_date = getdate(doc.end_date)
-	
-	frappe.msgprint(f"🔍 Generating for employee {emp.name} from {current_date} to {end_date}")
-	frappe.msgprint(f"📊 Config: Late={cfg.late_arrival_probability}%, Absent={cfg.absent_probability}%, OT={cfg.overtime_probability}%")
-	
-	# Limit the number of days to prevent database overload
-	max_days = min((end_date - current_date).days + 1, 30)  # Max 30 days at a time
-	days_processed = 0
-	
-	frappe.msgprint(f"📅 Max days to process: {max_days}")
-	
-	# Track months for Employee Attendance creation
-	months_created = set()
-	current_emp_attendance = None
-	
-	while current_date <= end_date and days_processed < max_days:
-		frappe.msgprint(f"📆 Processing date: {current_date} (day {days_processed + 1}/{max_days})")
+def _generate_for_employee_fast(doc, emp, cfg):
+	try:
+		log_message(f"🚀 Starting _generate_for_employee_fast for {emp.name}", "info")
 		
-		# Skip weekends if configured
-		if not doc.include_weekends and current_date.weekday() >= 5:
-			frappe.msgprint(f"🏖️ Skipping weekend: {current_date}")
-			current_date = add_days(current_date, 1)
-			continue
+		created = 0
+		current_date = getdate(doc.start_date)
+		end_date = getdate(doc.end_date)
 		
-		# Skip holidays if configured
-		if not doc.include_holidays:
-			# Check if it's a holiday (you can add holiday checking logic here)
-			pass
+		log_message(f"📅 Date range: {current_date} to {end_date}", "info")
 		
-		# Create Employee Attendance for this month if not already created
-		month_name = current_date.strftime("%B")
-		year = current_date.year
-		month_key = f"{month_name}_{year}"
+		# Process the full date range as specified by user
+		days_processed = 0
 		
-		if month_key not in months_created:
-			frappe.msgprint(f"📋 Creating Employee Attendance for {month_name} {year}")
-			current_emp_attendance = _create_employee_attendance(doc, emp, month_name, year)
-			if current_emp_attendance:
-				months_created.add(month_key)
-				frappe.msgprint(f"✅ Employee Attendance ready for {month_name} {year}")
-			else:
-				frappe.msgprint(f"❌ Failed to create Employee Attendance for {month_name} {year}")
+		log_message(f"🔍 Processing employee {emp.name} from {current_date} to {end_date}", "info")
+		log_message(f"📊 Config: Late={cfg.late_arrival_probability}%, Absent={cfg.absent_probability}%, OT={cfg.overtime_probability}%", "info")
 		
-		# Randomly determine if employee is absent
-		absent_roll = random.randint(1, 100)
-		frappe.msgprint(f"🎲 Absent roll: {absent_roll} vs threshold: {cfg.absent_probability}")
+		# STEP 1: Create Attendance Logs first
+		attendance_logs_batch = []
 		
-		if absent_roll <= cfg.absent_probability:
-			frappe.msgprint(f"🏠 Creating Leave Application for {current_date}")
-			_create_leave_application(doc, emp, current_date)
-			# Add absent record to Employee Attendance
-			if current_emp_attendance:
-				_add_daily_attendance_to_employee_attendance(current_emp_attendance, current_date, None, None, is_absent=True)
+		while current_date <= end_date:
+			try:
+				log_message(f"📅 Processing date: {current_date} (day {days_processed + 1})", "info")
+				
+				# Skip weekends if configured
+				if not doc.include_weekends and current_date.weekday() >= 5:
+					log_message(f"🏖️ Skipping weekend: {current_date}", "info")
+					current_date = add_days(current_date, 1)
+					continue
+				
+				# Randomly determine if employee is absent
+				absent_roll = random.randint(1, 100)
+				log_message(f"🎲 Absent roll: {absent_roll} vs threshold: {cfg.absent_probability}", "info")
+				
+				if absent_roll <= cfg.absent_probability:
+					# Create leave application
+					log_message(f"🏠 Employee absent on {current_date}, creating leave application", "info")
+					_create_leave_application_fast(doc, emp, current_date)
+					# Don't add attendance logs for absent days
+				else:
+					# Generate times
+					log_message(f"⏰ Generating times for {current_date}", "info")
+					check_in_time, check_out_time = _generate_times_fast(cfg)
+					
+					log_message(f"⏰ Generated times for {current_date}: Check-in={check_in_time}, Check-out={check_out_time}", "info")
+					
+					# Add to batch for attendance logs
+					attendance_logs_batch.extend([
+						{
+							"doctype": "Attendance Logs",
+							"employee": emp.name,
+							"employee_name": emp.employee_name,
+							"attendance_date": current_date,
+							"attendance_time": check_in_time,
+							"attendance": f" : {emp.biometric_id or '505'} : {current_date} {check_in_time.strftime('%H:%M:%S')} (1, 0)",
+							"company": doc.company,
+							"department": emp.department,
+							"designation": emp.designation,
+							"biometric_id": emp.biometric_id or "505",
+							"log_type": "Check In"
+						},
+						{
+							"doctype": "Attendance Logs",
+							"employee": emp.name,
+							"employee_name": emp.employee_name,
+							"attendance_date": current_date,
+							"attendance_time": check_out_time,
+							"attendance": f" : {emp.biometric_id or '505'} : {current_date} {check_out_time.strftime('%H:%M:%S')} (0, 1)",
+							"company": doc.company,
+							"department": emp.department,
+							"designation": emp.designation,
+							"biometric_id": emp.biometric_id or "505",
+							"log_type": "Check Out"
+						}
+					])
+					
+					log_message(f"📝 Added 2 attendance logs to batch for {current_date}. Total batch size: {len(attendance_logs_batch)}", "info")
+				
+				days_processed += 1
+				current_date = add_days(current_date, 1)
+				
+			except Exception as e:
+				log_message(f"❌ Error processing date {current_date}: {str(e)}", "error")
+				frappe.log_error(f"Error processing date {current_date}: {str(e)}", "Fake Attendance Generator")
+				current_date = add_days(current_date, 1)
+				continue
+		
+		log_message(f"📊 Total days processed: {days_processed}", "info")
+		log_message(f"📦 Attendance logs in batch: {len(attendance_logs_batch)}", "info")
+		
+		# STEP 2: Insert Attendance Logs first
+		if attendance_logs_batch:
+			log_message(f"🚀 Preparing to insert {len(attendance_logs_batch)} attendance logs", "info")
+			inserted_logs = _insert_batch(attendance_logs_batch)
+			log_message(f"✅ Successfully inserted {inserted_logs} attendance logs out of {len(attendance_logs_batch)}", "success")
+			created = inserted_logs  # Update created count based on actual insertions
 		else:
-			# Generate check-in and check-out times
-			frappe.msgprint(f"⏰ Creating Attendance Logs for {current_date}")
-			check_in_time, check_out_time = _generate_times(cfg)
-			frappe.msgprint(f"🕐 Generated times: Check-in={check_in_time}, Check-out={check_out_time}")
-			logs_created = _create_attendance_logs(doc, emp, current_date, check_in_time, check_out_time)
-			created += logs_created
-			
-			# Add present record to Employee Attendance
-			if current_emp_attendance:
-				_add_daily_attendance_to_employee_attendance(current_emp_attendance, current_date, check_in_time, check_out_time, is_absent=False)
+			log_message("⚠️ No attendance logs to insert", "warning")
+			created = 0
 		
-		created += 1
-		days_processed += 1
-		current_date = add_days(current_date, 1)
-	
-	# Save the Employee Attendance document with all daily records
-	if current_emp_attendance:
-		try:
-			current_emp_attendance.save()
-			frappe.msgprint(f"💾 Saved Employee Attendance '{current_emp_attendance.name}' with {len(current_emp_attendance.table1)} daily records")
-		except Exception as e:
-			frappe.msgprint(f"❌ Error saving Employee Attendance: {str(e)}")
-			frappe.log_error(f"Error saving Employee Attendance: {str(e)}", "Fake Attendance Generator")
-	
-	frappe.msgprint(f"📈 Total records created for employee {emp.name}: {created}")
-	return created
+		# STEP 3: Now create Employee Attendance
+		month_name = getdate(doc.start_date).strftime("%B")
+		year = getdate(doc.start_date).year
+		
+		log_message(f"📋 Creating Employee Attendance for {month_name} {year}", "info")
+		emp_attendance = _create_employee_attendance_fast(doc, emp, month_name, year)
+		
+		# Debug: Check if Employee Attendance was created
+		if not emp_attendance:
+			log_message(f"❌ Failed to create Employee Attendance for {emp.name}", "error")
+			frappe.log_error(f"Failed to create Employee Attendance for {emp.name}", "Fake Attendance Generator")
+			return created
+		
+		log_message(f"✅ Created Employee Attendance: {emp_attendance.name} for {emp.name}", "success")
+		
+		# STEP 4: Now add daily attendance records to Employee Attendance
+		current_date = getdate(doc.start_date)
+		while current_date <= end_date:
+			try:
+				# Skip weekends if configured
+				if not doc.include_weekends and current_date.weekday() >= 5:
+					current_date = add_days(current_date, 1)
+					continue
+				
+				# Check if employee was absent on this date
+				absent_roll = random.randint(1, 100)
+				is_absent = absent_roll <= cfg.absent_probability
+				
+				if is_absent:
+					# Add absent record
+					try:
+						_add_daily_attendance_fast(emp_attendance.name, current_date, None, None, True)
+						log_message(f"✅ Added absent record for {current_date}", "success")
+					except Exception as e:
+						log_message(f"❌ Error adding absent record for {current_date}: {str(e)}", "error")
+						frappe.log_error(f"Error adding absent record for {current_date}: {str(e)}", "Fake Attendance Generator")
+				else:
+					# Generate times again for consistency
+					check_in_time, check_out_time = _generate_times_fast(cfg)
+					
+					# Add present record
+					try:
+						_add_daily_attendance_fast(emp_attendance.name, current_date, check_in_time, check_out_time, False)
+						log_message(f"✅ Added present record for {current_date}: {check_in_time} - {check_out_time}", "success")
+					except Exception as e:
+						log_message(f"❌ Error adding present record for {current_date}: {str(e)}", "error")
+						frappe.log_error(f"Error adding present record for {current_date}: {str(e)}", "Fake Attendance Generator")
+				
+				current_date = add_days(current_date, 1)
+				
+			except Exception as e:
+				log_message(f"❌ Error processing date {current_date} for Employee Attendance: {str(e)}", "error")
+				frappe.log_error(f"Error processing date {current_date} for Employee Attendance: {str(e)}", "Fake Attendance Generator")
+				current_date = add_days(current_date, 1)
+				continue
+		
+		# Final save of Employee Attendance to ensure all changes are persisted
+		if emp_attendance:
+			try:
+				# Get a fresh copy to avoid modification conflicts
+				fresh_emp_attendance = frappe.get_doc("Employee Attendance", emp_attendance.name)
+				fresh_emp_attendance.save()
+				log_message(f"Final save of Employee Attendance {fresh_emp_attendance.name} with {len(fresh_emp_attendance.table1)} daily records", "info")
+			except Exception as e:
+				log_message(f"❌ Error in final save of Employee Attendance: {str(e)}", "error")
+				frappe.log_error(f"Error in final save of Employee Attendance: {str(e)}", "Fake Attendance Generator")
+		
+		log_message(f"Employee {emp.name}: Created {created} attendance records, processed {days_processed} days", "info")
+		return created
+		
+	except Exception as e:
+		log_message(f"❌ Error in _generate_for_employee_fast for {emp.name}: {str(e)}", "error")
+		frappe.log_error(f"Error in _generate_for_employee_fast for {emp.name}: {str(e)}", "Fake Attendance Generator")
+		import traceback
+		frappe.log_error(f"Traceback: {traceback.format_exc()}", "Fake Attendance Generator")
+		return 0
 
-def _get_months_in_range(start_date, end_date):
-	months = []
-	current = get_first_day(start_date)
-	while current <= end_date:
-		months.append(current)
-		# Move to next month
-		if current.month == 12:
-			current = current.replace(year=current.year + 1, month=1)
-		else:
-			current = current.replace(month=current.month + 1)
-	return months
-
-def _get_or_create_employee_attendance(doc, emp, month, year):
-	# Check if Employee Attendance exists for this month
-	existing = frappe.get_all(
-		"Employee Attendance",
-		filters={
-			"employee": emp.name,
-			"month": month,
-			"year": year
-		},
-		limit=1
-	)
-	
-	if existing:
-		return frappe.get_doc("Employee Attendance", existing[0].name)
-	else:
-		# Create new Employee Attendance
-		emp_attendance_doc = frappe.get_doc({
-			"doctype": "Employee Attendance",
-			"employee": emp.name,
-			"month": month,
-			"year": year,
-			"company": doc.company
-		})
-		emp_attendance_doc.insert()
-		return emp_attendance_doc
-
-def _generate_times(cfg):
-	# Generate random check-in and check-out times based on configuration
+def _generate_times_fast(cfg):
 	check_in_start = get_time(cfg.check_in_start_time)
 	check_in_end = get_time(cfg.check_in_end_time)
 	check_out_start = get_time(cfg.check_out_start_time)
 	check_out_end = get_time(cfg.check_out_end_time)
 	
-	# Generate random check-in time
-	check_in_time = _random_time(check_in_start, check_in_end)
-	
-	# Generate random check-out time (after check-in)
-	check_out_time = _random_time(check_out_start, check_out_end)
+	check_in_time = _random_time_fast(check_in_start, check_in_end)
+	check_out_time = _random_time_fast(check_out_start, check_out_end)
 	
 	return check_in_time, check_out_time
 
-def _random_time(start_time, end_time):
-	# Generate a random time between start_time and end_time
+def _random_time_fast(start_time, end_time):
 	start_minutes = start_time.hour * 60 + start_time.minute
 	end_minutes = end_time.hour * 60 + end_time.minute
-	
 	random_minutes = random.randint(start_minutes, end_minutes)
 	hours = random_minutes // 60
 	minutes = random_minutes % 60
-	
 	return time(hours, minutes)
 
-def _create_leave_application(doc, emp, date):
-	# Create Leave Application for absent days
-	# Try to get leave types without the is_active filter first
+def _create_leave_application_fast(doc, emp, date):
 	try:
 		leave_types = frappe.get_all("Leave Type", limit=1)
-	except:
-		# If that fails, try without any filters
-		leave_types = frappe.db.sql("SELECT name FROM `tabLeave Type` LIMIT 1", as_dict=True)
-	
-	if leave_types:
+		if not leave_types:
+			return
+		
 		leave_type = leave_types[0].name
 		
-		# Check if allocation already exists for this period
-		try:
-			existing_allocation = frappe.get_all(
-				"Leave Allocation",
-				filters={
-					"employee": emp.name,
-					"leave_type": leave_type,
-					"from_date": ["<=", date],
-					"to_date": [">=", date]
-				},
-				limit=1
-			)
-			
-			if not existing_allocation:
-				# Check if there's already an allocation for this year
-				year_allocation = frappe.get_all(
-					"Leave Allocation",
-					filters={
-						"employee": emp.name,
-						"leave_type": leave_type,
-						"from_date": ["<=", getdate(f"{date.year}-12-31")],
-						"to_date": [">=", getdate(f"{date.year}-01-01")]
-					},
-					limit=1
-				)
-				
-				if not year_allocation:
-					# Create a leave allocation for this period (covering the entire year)
-					year_start = getdate(f"{date.year}-01-01")
-					year_end = getdate(f"{date.year}-12-31")
-					
-					allocation_doc = frappe.get_doc({
-						"doctype": "Leave Allocation",
-						"employee": emp.name,
-						"leave_type": leave_type,
-						"from_date": year_start,
-						"to_date": year_end,
-						"new_leaves_allocated": 10,  # Reduced to 10 days to avoid max allocation error
-						"company": doc.company,
-						"description": "Auto-generated for fake attendance"
-					})
-					allocation_doc.insert()
-					allocation_doc.submit()
-					frappe.msgprint(f"Created Leave Allocation for {emp.name} for {date.year}")
-				else:
-					frappe.msgprint(f"Leave Allocation already exists for {emp.name} for {date.year}")
-		except Exception as e:
-			# If allocation creation fails, continue without it
-			frappe.msgprint(f"Could not create Leave Allocation for {emp.name}: {str(e)}")
-		
-		# Create the leave application with "Open" status instead of "Draft"
+		# Create leave application directly
 		leave_doc = frappe.get_doc({
 			"doctype": "Leave Application",
 			"employee": emp.name,
@@ -469,163 +617,45 @@ def _create_leave_application(doc, emp, date):
 			"to_date": date,
 			"half_day": 0,
 			"company": doc.company,
-			"status": "Open",  # Changed from "Draft" to "Open"
+			"status": "Open",
 			"description": "Auto-generated for fake attendance"
 		})
-		
-		try:
-			leave_doc.insert()
-			frappe.msgprint(f"✅ SUCCESS: Created Leave Application '{leave_doc.name}' for {emp.name} on {date}")
-		except Exception as e:
-			# If creation fails, log the error but continue
-			frappe.msgprint(f"❌ FAILED: Could not create Leave Application for {emp.name} on {date}: {str(e)}")
-			frappe.log_error(f"Failed to create Leave Application for {emp.name} on {date}: {str(e)}", "Fake Attendance Generator")
-	else:
-		frappe.msgprint("No Leave Type found to create Leave Application")
-
-def _create_attendance_logs(doc, emp, date, check_in_time, check_out_time):
-	# Create Attendance Logs for check-in and check-out
-	logs_created = 0
-	biometric_id = emp.biometric_id or "505"  # Default biometric ID
-	
-	try:
-		# Create check-in log
-		check_in_attendance_string = f" : {biometric_id} : {date} {check_in_time.strftime('%H:%M:%S')} (1, 0)"
-		frappe.msgprint(f"Creating check-in log with attendance string: {check_in_attendance_string}")
-		
-		check_in_log = frappe.get_doc({
-			"doctype": "Attendance Logs",
-			"employee": emp.name,
-			"employee_name": emp.employee_name,
-			"attendance_date": date,
-			"attendance_time": check_in_time,
-			"attendance": check_in_attendance_string,
-			"company": doc.company,
-			"department": emp.department,
-			"designation": emp.designation,
-			"biometric_id": biometric_id,
-			"log_type": "Check In"
-		})
-		
-		# Retry logic for database locks
-		max_retries = 3
-		for attempt in range(max_retries):
-			try:
-				check_in_log.insert()
-				frappe.msgprint(f"✅ SUCCESS: Created check-in log '{check_in_log.name}' for {emp.name} on {date} at {check_in_time}")
-				logs_created += 1
-				break
-			except Exception as e:
-				if "Lock wait timeout" in str(e) and attempt < max_retries - 1:
-					frappe.msgprint(f"⚠️ Database lock timeout, retrying check-in log (attempt {attempt + 1}/{max_retries})")
-					time.sleep(0.5)  # Wait longer between retries
-					frappe.db.rollback()
-				else:
-					frappe.msgprint(f"❌ FAILED: Could not create check-in log for {emp.name} on {date} after retry: {str(e)}")
-					frappe.log_error(f"Failed to create check-in log for {emp.name} on {date} after retry: {str(e)}", "Fake Attendance Generator")
-					break
-		
-		# Create check-out log
-		check_out_attendance_string = f" : {biometric_id} : {date} {check_out_time.strftime('%H:%M:%S')} (0, 1)"
-		frappe.msgprint(f"Creating check-out log with attendance string: {check_out_attendance_string}")
-		
-		check_out_log = frappe.get_doc({
-			"doctype": "Attendance Logs",
-			"employee": emp.name,
-			"employee_name": emp.employee_name,
-			"attendance_date": date,
-			"attendance_time": check_out_time,
-			"attendance": check_out_attendance_string,
-			"company": doc.company,
-			"department": emp.department,
-			"designation": emp.designation,
-			"biometric_id": biometric_id,
-			"log_type": "Check Out"
-		})
-		
-		# Retry logic for database locks
-		for attempt in range(max_retries):
-			try:
-				check_out_log.insert()
-				frappe.msgprint(f"✅ SUCCESS: Created check-out log '{check_out_log.name}' for {emp.name} on {date} at {check_out_time}")
-				logs_created += 1
-				break
-			except Exception as e:
-				if "Lock wait timeout" in str(e) and attempt < max_retries - 1:
-					frappe.msgprint(f"⚠️ Database lock timeout, retrying check-out log (attempt {attempt + 1}/{max_retries})")
-					time.sleep(0.5)  # Wait longer between retries
-					frappe.db.rollback()
-				else:
-					frappe.msgprint(f"❌ FAILED: Could not create check-out log for {emp.name} on {date} after retry: {str(e)}")
-					frappe.log_error(f"Failed to create check-out log for {emp.name} on {date} after retry: {str(e)}", "Fake Attendance Generator")
-					break
-		
-		frappe.msgprint(f"📊 RESULT: Created {logs_created} attendance logs for {emp.name} on {date}")
-		return logs_created
+		leave_doc.insert()
 		
 	except Exception as e:
-		frappe.msgprint(f"❌ Error creating attendance logs for {emp.name} on {date}: {str(e)}")
-		frappe.log_error(f"Error creating attendance logs for {emp.name} on {date}: {str(e)}", "Fake Attendance Generator")
-		return logs_created
+		frappe.log_error(f"Failed to create Leave Application for {emp.name} on {date}: {str(e)}", "Fake Attendance Generator")
 
-def _update_employee_attendance_summary(doc):
-	# This function updates Employee Attendance summaries for the generated period
-	# Employee Attendance uses month and year fields, not attendance_date
-	
-	start_date = getdate(doc.start_date)
-	end_date = getdate(doc.end_date)
-	
-	frappe.msgprint(f"📋 Updating Employee Attendance summaries for period: {start_date} to {end_date}")
-	
-	# Get all Employee Attendance records for the period
-	employee_attendances = frappe.get_all(
-		"Employee Attendance",
-		filters={
-			"month": ["in", ["January", "February", "March", "April", "May", "June", 
-							 "July", "August", "September", "October", "November", "December"]],
-			"year": ["between", [start_date.year, end_date.year]],
-			"docstatus": 0  # Only unsubmitted/draft
-		},
-		fields=["name", "employee", "month", "year"]
-	)
-	
-	frappe.msgprint(f"📊 Found {len(employee_attendances)} Employee Attendance records to update")
-	
-	for emp_attendance_doc in employee_attendances:
-		try:
-			frappe.msgprint(f"🔄 Updating Employee Attendance: {emp_attendance_doc.name}")
-			emp_attendance = frappe.get_doc("Employee Attendance", emp_attendance_doc.name)
-			
-			# Calculate summary for the month
-			month_num = {
-				"January": 1, "February": 2, "March": 3, "April": 4,
-				"May": 5, "June": 6, "July": 7, "August": 8,
-				"September": 9, "October": 10, "November": 11, "December": 12
-			}[emp_attendance.month]
-			
-			month_start = get_first_day(getdate(f"{emp_attendance.year}-{month_num:02d}-01"))
-			month_end = get_last_day(month_start)
-			
-			# Count present days, absents, etc. for this month
-			total_working_days = (month_end - month_start).days + 1
-			present_days = random.randint(int(total_working_days * 0.8), total_working_days - 2)  # 80-95% present
-			total_absents = total_working_days - present_days
-			hours_worked = present_days * 8  # Assuming 8 hours per day
-			
-			frappe.msgprint(f"📈 Summary for {emp_attendance.month} {emp_attendance.year}: Present={present_days}, Absent={total_absents}, Hours={hours_worked}")
-			
-			# Update the Employee Attendance record
-			emp_attendance.present_days = str(present_days)
-			emp_attendance.total_absents = str(total_absents)
-			emp_attendance.total_working_days = str(total_working_days)
-			emp_attendance.hours_worked = str(hours_worked)
-			emp_attendance.save()
-			
-			frappe.msgprint(f"✅ Updated Employee Attendance: {emp_attendance.name}")
-			
-		except Exception as e:
-			frappe.log_error(f"Error updating Employee Attendance {emp_attendance_doc.name}: {str(e)}", "Fake Attendance Generator")
-			frappe.msgprint(f"❌ Failed to update Employee Attendance {emp_attendance_doc.name}: {str(e)}")
-			continue
-	
-	frappe.msgprint(f"✅ Employee Attendance summaries update completed")
+def _insert_batch(docs_batch):
+	"""Insert multiple documents in batch for better performance"""
+	try:
+		log_message(f"🚀 Starting batch insert of {len(docs_batch)} documents", "info")
+		inserted_count = 0
+		
+		for i, doc_data in enumerate(docs_batch):
+			try:
+				log_message(f"📝 Inserting document {i+1}/{len(docs_batch)}: {doc_data.get('doctype')} for {doc_data.get('employee')} on {doc_data.get('attendance_date')}", "info")
+				
+				doc = frappe.get_doc(doc_data)
+				doc.insert()
+				inserted_count += 1
+				
+				log_message(f"✅ Successfully inserted document {i+1}: {doc.name}", "success")
+				
+				if i % 10 == 0:  # Log every 10th document
+					log_message(f"📊 Progress: Inserted {inserted_count}/{len(docs_batch)} documents", "info")
+					
+			except Exception as e:
+				log_message(f"❌ Error inserting document {i+1}: {str(e)}", "error")
+				log_message(f"📋 Document data: {doc_data}", "info")
+				frappe.log_error(f"Error inserting document {i+1}: {str(e)}", "Fake Attendance Generator")
+				continue
+		
+		log_message(f"🎉 Batch insert completed: {inserted_count}/{len(docs_batch)} documents inserted successfully", "success")
+		return inserted_count
+		
+	except Exception as e:
+		log_message(f"❌ Error in batch insert: {str(e)}", "error")
+		frappe.log_error(f"Error in batch insert: {str(e)}", "Fake Attendance Generator")
+		import traceback
+		frappe.log_error(f"Traceback: {traceback.format_exc()}", "Fake Attendance Generator")
+		return 0
