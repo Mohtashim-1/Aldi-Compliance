@@ -16,6 +16,46 @@
   {
    "hidden": 0,
    "is_query_report": 0,
+   "label": "Compliance Settings",
+   "link_count": 0,
+   "link_to": "Compliance Settings",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Compliance Settings",
+   "link_count": 0,
+   "link_to": "Compliance Settings",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Attendance Generate",
+   "link_count": 0,
+   "link_to": "Compliance Attendance Generate",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Attendance Generate",
+   "link_count": 0,
+   "link_to": "Compliance Attendance Generate",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
    "label": "Master",
    "link_count": 1,
    "link_type": "DocType",
@@ -25,9 +65,9 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Compliance Settings",
+   "label": "Department Attendance Configuration",
    "link_count": 0,
-   "link_to": "Compliance Settings",
+   "link_to": "Department Attendance Config",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -44,15 +84,15 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Attendance Generate",
+   "label": "Fake Attendance Generator",
    "link_count": 0,
-   "link_to": "Compliance Attendance Generate",
+   "link_to": "Fake Attendance Generator",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
   }
  ],
- "modified": "2025-02-24 18:11:07.448783",
+ "modified": "2025-09-19 12:43:34.741321",
  "modified_by": "Administrator",
  "module": "Compliance",
  "name": "Compliance",
@@ -62,6 +102,9 @@
  "public": 1,
  "quick_lists": [],
  "roles": [
+  {
+   "role": "System Manager"
+  },
   {
    "role": "System Manager"
   }
