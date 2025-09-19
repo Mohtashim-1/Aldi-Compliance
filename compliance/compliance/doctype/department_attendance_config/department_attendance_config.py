@@ -16,7 +16,7 @@ class DepartmentAttendanceConfig(Document):
 			self.absent_probability,
 			self.overtime_probability,
 			self.early_exit_probability
-		]
+		]	
 		
 		for prob in probabilities:
 			# Convert to float to handle string values
