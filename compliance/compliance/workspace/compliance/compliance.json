@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"himWYwCktq\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Compliance</span>\",\"col\":12}},{\"id\":\"KZ9pYOBgH0\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Compliance Settings\",\"col\":3}},{\"id\":\"UC7UlE3WNt\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Compliance Attendance Generate\",\"col\":3}},{\"id\":\"5HTHrFrwPX\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"c9VN3pfi5O\",\"type\":\"card\",\"data\":{\"card_name\":\"Master\",\"col\":4}},{\"id\":\"tR8mhZiurV\",\"type\":\"card\",\"data\":{\"card_name\":\"Transaction\",\"col\":4}}]",
+ "content": "[{\"id\":\"himWYwCktq\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Compliance</span>\",\"col\":12}},{\"id\":\"5HTHrFrwPX\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"c9VN3pfi5O\",\"type\":\"card\",\"data\":{\"card_name\":\"Master\",\"col\":4}},{\"id\":\"tR8mhZiurV\",\"type\":\"card\",\"data\":{\"card_name\":\"Transaction\",\"col\":4}}]",
  "creation": "2025-02-24 18:06:28.274431",
  "custom_blocks": [],
  "docstatus": 0,
@@ -92,7 +92,7 @@
    "type": "Link"
   }
  ],
- "modified": "2025-09-19 12:43:34.741321",
+ "modified": "2025-09-19 12:44:40.867916",
  "modified_by": "Administrator",
  "module": "Compliance",
  "name": "Compliance",
@@ -110,22 +110,6 @@
   }
  ],
  "sequence_id": 42.0,
- "shortcuts": [
-  {
-   "color": "Grey",
-   "doc_view": "List",
-   "label": "Compliance Settings",
-   "link_to": "Compliance Settings",
-   "type": "DocType"
-  },
-  {
-   "color": "Grey",
-   "doc_view": "List",
-   "label": "Compliance Attendance Generate",
-   "link_to": "Compliance Attendance Generate",
-   "stats_filter": "[]",
-   "type": "DocType"
-  }
- ],
+ "shortcuts": [],
  "title": "Compliance"
 }
