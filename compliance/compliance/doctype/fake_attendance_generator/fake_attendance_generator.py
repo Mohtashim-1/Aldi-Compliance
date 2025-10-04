@@ -22,7 +22,11 @@ def log_message(message, level="info", show_user=True):
 	if level == "error":
 		# Truncate long error messages to avoid character length issues
 		short_message = message[:100] + "..." if len(message) > 100 else message
-		frappe.log_error(short_message, "Fake Attendance Generator")
+		try:
+			frappe.log_error(short_message, "Fake Attendance Generator")
+		except Exception:
+			# If error logging fails, just print to console to avoid cascading errors
+			print(f"[ERROR] Failed to log error: {short_message}")
 	
 	# Show user messages based on level
 	if show_user:
@@ -78,7 +82,6 @@ def generate_attendance(name):
 		
 	except Exception as e:
 		log_message(f"❌ Error queuing background job: {str(e)}", "error")
-		frappe.log_error(f"Error queuing background job: {str(e)}", "Fake Attendance Generator")
 		
 		# Update document status to failed
 		try:
@@ -149,7 +152,6 @@ def generate_attendance_background(doc_name):
 				
 			except Exception as e:
 				log_message(f"❌ Error for employee {emp.name}: {str(e)}", "error")
-				frappe.log_error(f"Error generating for employee {emp.name}: {str(e)}", "Fake Attendance Generator")
 				frappe.db.rollback()
 				continue
 		
@@ -176,7 +178,6 @@ def generate_attendance_background(doc_name):
 		
 	except Exception as e:
 		log_message(f"❌ Background job error: {str(e)}", "error")
-		frappe.log_error(f"Error in background job: {str(e)}", "Fake Attendance Generator")
 		
 		# Update document status to failed
 		try:
@@ -248,7 +249,6 @@ def _get_employees(doc):
 		
 	except Exception as e:
 		log_message(f"❌ Error getting employees: {str(e)}", "error")
-		frappe.log_error(f"Error getting employees: {str(e)}", "Fake Attendance Generator")
 		return []
 
 def _get_dept_configs():
@@ -278,7 +278,6 @@ def _get_dept_configs():
 		
 	except Exception as e:
 		log_message(f"❌ Error getting department configs: {str(e)}", "error")
-		frappe.log_error(f"Error getting department configs: {str(e)}", "Fake Attendance Generator")
 	
 	return configs
 
@@ -348,9 +347,6 @@ def _create_employee_attendance_fast(doc, emp, month_name, year):
 		
 	except Exception as e:
 		log_message(f"❌ Error creating Employee Attendance: {str(e)}", "error")
-		frappe.log_error(f"Error creating Employee Attendance for {emp.name}: {str(e)}", "Fake Attendance Generator")
-		import traceback
-		frappe.log_error(f"Traceback: {traceback.format_exc()}", "Fake Attendance Generator")
 		return None
 
 def _add_daily_attendance_fast(emp_attendance_name, date, check_in_time, check_out_time, is_absent):
@@ -401,7 +397,6 @@ def _add_daily_attendance_fast(emp_attendance_name, date, check_in_time, check_o
 		
 	except Exception as e:
 		log_message(f"❌ Error adding daily attendance for {date}: {str(e)}", "error")
-		frappe.log_error(f"Error adding daily attendance for {date}: {str(e)}", "Fake Attendance Generator")
 		# Re-raise the exception to see what's happening
 		raise e
 
@@ -487,7 +482,6 @@ def _generate_for_employee_fast(doc, emp, cfg):
 				
 			except Exception as e:
 				log_message(f"❌ Error processing date {current_date}: {str(e)}", "error")
-				frappe.log_error(f"Error processing date {current_date}: {str(e)}", "Fake Attendance Generator")
 				current_date = add_days(current_date, 1)
 				continue
 		
@@ -514,7 +508,6 @@ def _generate_for_employee_fast(doc, emp, cfg):
 		# Debug: Check if Employee Attendance was created
 		if not emp_attendance:
 			log_message(f"❌ Failed to create Employee Attendance for {emp.name}", "error")
-			frappe.log_error(f"Failed to create Employee Attendance for {emp.name}", "Fake Attendance Generator")
 			return created
 		
 		log_message(f"✅ Created Employee Attendance: {emp_attendance.name} for {emp.name}", "success")
@@ -539,7 +532,6 @@ def _generate_for_employee_fast(doc, emp, cfg):
 						log_message(f"✅ Added absent record for {current_date}", "success")
 					except Exception as e:
 						log_message(f"❌ Error adding absent record for {current_date}: {str(e)}", "error")
-						frappe.log_error(f"Error adding absent record for {current_date}: {str(e)}", "Fake Attendance Generator")
 				else:
 					# Generate times again for consistency
 					check_in_time, check_out_time = _generate_times_fast(cfg)
@@ -550,13 +542,11 @@ def _generate_for_employee_fast(doc, emp, cfg):
 						log_message(f"✅ Added present record for {current_date}: {check_in_time} - {check_out_time}", "success")
 					except Exception as e:
 						log_message(f"❌ Error adding present record for {current_date}: {str(e)}", "error")
-						frappe.log_error(f"Error adding present record for {current_date}: {str(e)}", "Fake Attendance Generator")
 				
 				current_date = add_days(current_date, 1)
 				
 			except Exception as e:
 				log_message(f"❌ Error processing date {current_date} for Employee Attendance: {str(e)}", "error")
-				frappe.log_error(f"Error processing date {current_date} for Employee Attendance: {str(e)}", "Fake Attendance Generator")
 				current_date = add_days(current_date, 1)
 				continue
 		
@@ -569,16 +559,12 @@ def _generate_for_employee_fast(doc, emp, cfg):
 				log_message(f"Final save of Employee Attendance {fresh_emp_attendance.name} with {len(fresh_emp_attendance.table1)} daily records", "info")
 			except Exception as e:
 				log_message(f"❌ Error in final save of Employee Attendance: {str(e)}", "error")
-				frappe.log_error(f"Error in final save of Employee Attendance: {str(e)}", "Fake Attendance Generator")
 		
 		log_message(f"Employee {emp.name}: Created {created} attendance records, processed {days_processed} days", "info")
 		return created
 		
 	except Exception as e:
 		log_message(f"❌ Error in _generate_for_employee_fast for {emp.name}: {str(e)}", "error")
-		frappe.log_error(f"Error in _generate_for_employee_fast for {emp.name}: {str(e)}", "Fake Attendance Generator")
-		import traceback
-		frappe.log_error(f"Traceback: {traceback.format_exc()}", "Fake Attendance Generator")
 		return 0
 
 def _generate_times_fast(cfg):
@@ -602,11 +588,39 @@ def _random_time_fast(start_time, end_time):
 
 def _create_leave_application_fast(doc, emp, date):
 	try:
-		leave_types = frappe.get_all("Leave Type", limit=1)
-		if not leave_types:
+		# Check if there's a valid leave allocation for this employee and date
+		leave_allocations = frappe.get_all("Leave Allocation", 
+			filters={
+				"employee": emp.name,
+				"from_date": ["<=", date],
+				"to_date": [">=", date],
+				"docstatus": 1
+			},
+			fields=["leave_type", "from_date", "to_date"],
+			limit=1
+		)
+		
+		if not leave_allocations:
+			log_message(f"No valid leave allocation found for {emp.name} on {date}, skipping leave application", "warning")
 			return
 		
-		leave_type = leave_types[0].name
+		leave_allocation = leave_allocations[0]
+		leave_type = leave_allocation.leave_type
+		
+		# Check if there's already a leave application for this date
+		existing_leave = frappe.get_all("Leave Application",
+			filters={
+				"employee": emp.name,
+				"from_date": ["<=", date],
+				"to_date": [">=", date],
+				"docstatus": ["!=", 2]  # Not cancelled
+			},
+			limit=1
+		)
+		
+		if existing_leave:
+			log_message(f"Leave application already exists for {emp.name} on {date}, skipping", "info")
+			return
 		
 		# Create leave application directly
 		leave_doc = frappe.get_doc({
@@ -621,9 +635,10 @@ def _create_leave_application_fast(doc, emp, date):
 			"description": "Auto-generated for fake attendance"
 		})
 		leave_doc.insert()
+		log_message(f"Created leave application for {emp.name} on {date}", "success")
 		
 	except Exception as e:
-		frappe.log_error(f"Failed to create Leave Application for {emp.name} on {date}: {str(e)}", "Fake Attendance Generator")
+		log_message(f"Failed to create Leave Application for {emp.name} on {date}: {str(e)}", "error")
 
 def _insert_batch(docs_batch):
 	"""Insert multiple documents in batch for better performance"""
@@ -647,7 +662,6 @@ def _insert_batch(docs_batch):
 			except Exception as e:
 				log_message(f"❌ Error inserting document {i+1}: {str(e)}", "error")
 				log_message(f"📋 Document data: {doc_data}", "info")
-				frappe.log_error(f"Error inserting document {i+1}: {str(e)}", "Fake Attendance Generator")
 				continue
 		
 		log_message(f"🎉 Batch insert completed: {inserted_count}/{len(docs_batch)} documents inserted successfully", "success")
@@ -655,7 +669,4 @@ def _insert_batch(docs_batch):
 		
 	except Exception as e:
 		log_message(f"❌ Error in batch insert: {str(e)}", "error")
-		frappe.log_error(f"Error in batch insert: {str(e)}", "Fake Attendance Generator")
-		import traceback
-		frappe.log_error(f"Traceback: {traceback.format_exc()}", "Fake Attendance Generator")
 		return 0
